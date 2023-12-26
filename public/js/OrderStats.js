@@ -3,7 +3,13 @@
 /* eslint-disable no-undef */
 class OrderStats extends React.Component {
   render() {
-    const { orderStats, selectedSortOption, searchKeyword } = this.props;
+    const {
+      orderStats,
+      selectedSortOption,
+      searchKeyword,
+      maxBuyOpenOrders,
+      maxOpenTrades
+    } = this.props;
 
     if (_.isEmpty(orderStats)) {
       return '';
@@ -20,7 +26,7 @@ class OrderStats extends React.Component {
             onClick={() => this.props.setSearchKeyword('open orders')}>
             <span className='order-stat-label'>Open Buy Orders</span>
             <span className='order-stat-value text-info'>
-              {orderStats.numberOfBuyOpenOrders}
+              {orderStats.numberOfBuyOpenOrders} / {maxBuyOpenOrders}
             </span>
           </button>
         </div>
@@ -33,7 +39,7 @@ class OrderStats extends React.Component {
             onClick={() => this.props.setSearchKeyword('open trades')}>
             <span className='order-stat-label'>Open Trades</span>
             <span className='order-stat-value text-info'>
-              {orderStats.numberOfOpenTrades}
+              {orderStats.numberOfOpenTrades} / {maxOpenTrades}
             </span>
           </button>
         </div>

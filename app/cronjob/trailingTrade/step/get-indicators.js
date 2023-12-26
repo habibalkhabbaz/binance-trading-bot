@@ -10,20 +10,20 @@ const { getLastBuyPrice } = require('../../trailingTradeHelper/common');
  * @param {*} candles
  */
 const flattenCandlesData = candles => {
-  const openTime = [];
+  const time = [];
   const high = [];
   const low = [];
   const close = [];
 
   candles.forEach(candle => {
-    openTime.push(+candle.openTime);
+    time.push(+candle.time);
     high.push(+candle.high);
     low.push(+candle.low);
     close.push(+candle.close);
   });
 
   return {
-    openTime,
+    time,
     high,
     low,
     close
@@ -296,12 +296,10 @@ const execute = async (logger, rawData) => {
     };
   }
 
-  const cachedTradingView =
+  // Set trading view
+  data.tradingView =
     JSON.parse(await cache.hget('trailing-trade-tradingview', `${symbol}`)) ||
     {};
-
-  // Set trading view
-  data.tradingView = cachedTradingView;
 
   // Set last candle
   data.lastCandle = cachedLatestCandle;
@@ -313,6 +311,31 @@ const execute = async (logger, rawData) => {
 
   // Get current price
   const currentPrice = parseFloat(cachedLatestCandle.close);
+
+  const currentCandleTime = _.max(candlesData.time);
+
+  let liquidity = _.toNumber(
+    await cache.hget(`liquidity-${currentCandleTime}`, symbol)
+  );
+  let lastCurrentPrice = await cache.hget('lastCurrentPrice', symbol);
+
+  if (!lastCurrentPrice) {
+    lastCurrentPrice = currentPrice;
+    await cache.hset('lastCurrentPrice', symbol, currentPrice, 60);
+  }
+
+  if (!liquidity) {
+    liquidity = 0;
+  }
+
+  if (_.floor(currentPrice, 10) !== _.floor(lastCurrentPrice, 10)) {
+    liquidity += 1;
+    await cache.hset(`liquidity-${currentCandleTime}`, symbol, liquidity, 60);
+    await cache.hset('lastCurrentPrice', symbol, currentPrice, 60);
+  }
+
+  const supportDifference = (currentPrice / lowestPrice - 1) * 100;
+  const resistanceDifference = (1 - currentPrice / highestPrice) * 100;
 
   // Get last buy price
   const lastBuyPriceDoc = await getLastBuyPrice(logger, symbol);
@@ -329,12 +352,12 @@ const execute = async (logger, rawData) => {
       limitPercentage: buyLimitPercentage
     } = currentBuyGridTrade;
 
-    // If grid trade index is 0 or last buy price is null, then use lowest price as trigger price.
+    // If grid trade index is 0 or last buy price is null, then use the lowest price as trigger price.
     // If grid trade index is not 0 and last buy price is not null, then use last buy price
     const triggerPrice =
       currentBuyGridTradeIndex !== 0 && lastBuyPrice !== null
         ? lastBuyPrice
-        : lowestPrice;
+        : highestPrice;
 
     buyTriggerPrice = triggerPrice * buyTriggerPercentage;
     buyDifference = (1 - currentPrice / buyTriggerPrice) * -100;
@@ -494,7 +517,10 @@ const execute = async (logger, rawData) => {
     nextBestBuyCalculation,
     openOrders: newOpenOrders?.filter(o => o.side.toLowerCase() === 'buy'),
     processMessage: _.get(data, 'buy.processMessage', ''),
-    updatedAt: moment().utc().toDate()
+    updatedAt: moment().utc().toDate(),
+    supportDifference,
+    resistanceDifference,
+    liquidity
   };
 
   data.sell = {

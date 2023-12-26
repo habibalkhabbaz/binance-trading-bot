@@ -460,6 +460,18 @@ class CoinWrapperBuySignal extends React.Component {
           ''
         )}
 
+        <div className='coin-info-column coin-info-column-price'>
+          <span className='coin-info-label'>Liquidity:</span>
+          <HightlightChange className='coin-info-value'>
+            {buy.liquidity}
+          </HightlightChange>
+        </div>
+        <div className='coin-info-column coin-info-column-price'>
+          <span className='coin-info-label'>Difference to resistance:</span>
+          <HightlightChange className='coin-info-value'>
+            {parseFloat(buy.resistanceDifference).toFixed(2)}
+          </HightlightChange>
+        </div>
         {buy.highestPrice ? (
           <div className='coin-info-column coin-info-column-price'>
             <span className='coin-info-label'>Highest price:</span>
@@ -490,6 +502,12 @@ class CoinWrapperBuySignal extends React.Component {
         ) : (
           ''
         )}
+        <div className='coin-info-column coin-info-column-price'>
+          <span className='coin-info-label'>Difference to support:</span>
+          <HightlightChange className='coin-info-value'>
+            {parseFloat(buy.supportDifference).toFixed(2)}
+          </HightlightChange>
+        </div>
         <div className='coin-info-column coin-info-column-price divider mb-1'></div>
         {buyGridRows}
         {buyNextGrid()}

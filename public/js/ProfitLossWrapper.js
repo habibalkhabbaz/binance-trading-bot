@@ -145,67 +145,65 @@ class ProfitLossWrapper extends React.Component {
       return '';
     }
 
-    const openTradeWrappers = Object.values(totalProfitAndLoss).map(
-      (profitAndLoss, index) => {
-        const percentage =
-          profitAndLoss.amount > 0
-            ? ((profitAndLoss.profit / profitAndLoss.amount) * 100).toFixed(2)
-            : 0;
-
-        const quoteAssetTotal =
-          profitAndLoss.estimatedBalance -
-          +profitAndLoss.profit +
-          +profitAndLoss.free +
-          +profitAndLoss.locked;
-        const openTradesRatio = quoteAssetTotal
-          ? ((profitAndLoss.estimatedBalance - +profitAndLoss.profit) /
-              quoteAssetTotal) *
-            100
+    const openTradeWrappers = totalProfitAndLoss.map((profitAndLoss, index) => {
+      const percentage =
+        profitAndLoss.amount > 0
+          ? ((profitAndLoss.profit / profitAndLoss.amount) * 100).toFixed(2)
           : 0;
 
-        return (
-          <div
-            key={`open-trade-pnl-` + index}
-            className='profit-loss-wrapper pt-2 pl-2 pr-2 pb-0'>
-            <div className='profit-loss-wrapper-body'>
-              <div className='profit-loss-asset'>
-                {profitAndLoss.asset}
-                <br />
-                <div
-                  className={`${
-                    openTradesRatio > 90
-                      ? 'text-danger'
-                      : openTradesRatio > 50
-                      ? 'text-warning'
-                      : 'text-success'
-                  } text-truncate`}>
-                  {profitAndLoss.estimatedBalance.toFixed(5)}
-                </div>
-                <div className='fs-9'>
-                  {openTradesRatio.toFixed(2) +
-                    '% of ' +
-                    quoteAssetTotal.toFixed(5) +
-                    ' ' +
-                    profitAndLoss.asset}
-                </div>
-              </div>{' '}
+      const quoteAssetTotal =
+        profitAndLoss.estimatedBalance -
+        +profitAndLoss.profit +
+        +profitAndLoss.free +
+        +profitAndLoss.locked;
+      const openTradesRatio = quoteAssetTotal
+        ? ((profitAndLoss.estimatedBalance - +profitAndLoss.profit) /
+            quoteAssetTotal) *
+          100
+        : 0;
+
+      return (
+        <div
+          key={`open-trade-pnl-` + index}
+          className='profit-loss-wrapper pt-2 pl-2 pr-2 pb-0'>
+          <div className='profit-loss-wrapper-body'>
+            <div className='profit-loss-asset'>
+              {profitAndLoss.asset}
+              <br />
               <div
-                className={`profit-loss-value ${
-                  profitAndLoss.profit > 0
-                    ? 'text-success'
-                    : profitAndLoss.profit < 0
+                className={`${
+                  openTradesRatio > 90
                     ? 'text-danger'
-                    : ''
-                }`}>
-                {profitAndLoss.profit > 0 ? '+' : ''}
-                {profitAndLoss.profit.toFixed(5)}
-                <br />({percentage}%)
+                    : openTradesRatio > 50
+                    ? 'text-warning'
+                    : 'text-success'
+                } text-truncate`}>
+                {profitAndLoss.estimatedBalance.toFixed(5)}
               </div>
+              <div className='fs-9'>
+                {openTradesRatio.toFixed(2) +
+                  '% of ' +
+                  quoteAssetTotal.toFixed(5) +
+                  ' ' +
+                  profitAndLoss.asset}
+              </div>
+            </div>{' '}
+            <div
+              className={`profit-loss-value ${
+                profitAndLoss.profit > 0
+                  ? 'text-success'
+                  : profitAndLoss.profit < 0
+                  ? 'text-danger'
+                  : ''
+              }`}>
+              {profitAndLoss.profit > 0 ? '+' : ''}
+              {profitAndLoss.profit.toFixed(5)}
+              <br />({percentage}%)
             </div>
           </div>
-        );
-      }
-    );
+        </div>
+      );
+    });
 
     const closedTradeWrappers = Object.values(closedTrades).map(
       (stat, index) => {

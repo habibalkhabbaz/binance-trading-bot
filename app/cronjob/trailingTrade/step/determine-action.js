@@ -35,7 +35,7 @@ const isLowerThanStopLossTriggerPrice = data => {
 };
 
 /**
- * Check whether can buy or not
+ * Check whether it can buy or not
  *
  *  - current price must be less than trigger price.
  *  - current grid trade must be defined.
@@ -43,23 +43,55 @@ const isLowerThanStopLossTriggerPrice = data => {
  * @param {*} data
  * @returns
  */
-const canBuy = data => {
+const canBuy = (logger, data) => {
   const {
+    symbol,
     symbolConfiguration: {
-      buy: { currentGridTrade }
+      buy: { currentGridTrade, currentGridTradeIndex: currentBuyGridTradeIndex }
     },
-    buy: { currentPrice: buyCurrentPrice, triggerPrice: buyTriggerPrice }
+    buy: {
+      currentPrice: buyCurrentPrice,
+      triggerPrice: buyTriggerPrice,
+      liquidity: buyLiquidity
+    },
+    tradingView
   } = data;
 
-  return (
-    buyCurrentPrice <= buyTriggerPrice &&
-    currentGridTrade !== null &&
-    !isLowerThanStopLossTriggerPrice(data)
-  );
+  let condition =
+    currentGridTrade !== null && !isLowerThanStopLossTriggerPrice(data);
+
+  if (currentBuyGridTradeIndex === 0) {
+    // result.oscillators.COMPUTE['CCI']
+    const tradingViewCciRecommendation = _.get(
+      tradingView,
+      'result.oscillators.COMPUTE.CCI',
+      ''
+    );
+
+    if (
+      condition &&
+      buyLiquidity > 20 &&
+      tradingViewCciRecommendation === 'BUY'
+    ) {
+      logger.error({ symbol, tradingViewCciRecommendation });
+    }
+
+    condition =
+      condition &&
+      buyLiquidity > 20 &&
+      // buyCurrentPrice >= buyTriggerPrice &&
+      tradingViewCciRecommendation === 'BUY';
+    // buyMarketSpread <= 0.014 &&
+    // tradingViewSummaryRecommendation === 'STRONG_BUY';
+  } else {
+    condition = condition && buyCurrentPrice <= buyTriggerPrice;
+  }
+
+  return condition;
 };
 
 /**
- * Check whether has enough balance to sell
+ * Check whether it has enough balance to sell
  *
  *  - If current gird trade index is 0, and has enough balance to sell,
  *    then it should not execute
@@ -104,7 +136,7 @@ const isGreaterThanTheATHRestrictionPrice = data => {
       }
     },
     buy: {
-      triggerPrice: buyTriggerPrice,
+      currentPrice: buyCurrentPrice,
       athRestrictionPrice: buyATHRestrictionPrice
     }
   } = data;
@@ -112,7 +144,7 @@ const isGreaterThanTheATHRestrictionPrice = data => {
   return (
     currentGridTradeIndex === 0 &&
     buyATHRestrictionEnabled === true &&
-    buyTriggerPrice >= buyATHRestrictionPrice
+    buyCurrentPrice >= buyATHRestrictionPrice
   );
 };
 
@@ -143,11 +175,7 @@ const isExceedingMaxBuyOpenOrders = async (logger, data) => {
 
   const currentBuyOpenOrders = await getNumberOfBuyOpenOrders(logger);
 
-  if (currentBuyOpenOrders >= orderLimitMaxBuyOpenOrders) {
-    return true;
-  }
-
-  return false;
+  return currentBuyOpenOrders >= orderLimitMaxBuyOpenOrders;
 };
 
 /**
@@ -171,7 +199,7 @@ const setBuyActionAndMessage = (logger, rawData, action, processMessage) => {
 };
 
 /**
- * Check whether can sell or not
+ * Check whether it can sell or not
  *
  *  - last buy price must be more than 0.
  *  - current balance must be more than the minimum notional value
@@ -440,11 +468,11 @@ const execute = async (logger, rawData) => {
 
   // Check buy signal -
   //  if last buy price is less than 0
-  //    and current price is less or equal than lowest price
-  //    and current balance has not enough value to sell,
+  //    and current price is less or equal than the lowest price
+  //    and current balance has no enough value to sell,
   //    and current price is lower than the restriction price
   //  then buy.
-  if (canBuy(data)) {
+  if (canBuy(logger, data)) {
     if (
       _.isEmpty(await getGridTradeLastOrder(logger, symbol, 'buy')) === false
     ) {
@@ -469,7 +497,7 @@ const execute = async (logger, rawData) => {
     }
 
     const checkDisable = await isActionDisabled(symbol);
-    logger.info(
+    logger.error(
       { tag: 'check-disable', checkDisable },
       'Checked whether symbol is disabled or not.'
     );

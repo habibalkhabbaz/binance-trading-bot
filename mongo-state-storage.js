@@ -27,7 +27,7 @@ class MongoDbStore {
     } catch (err) {
       throw err;
     } finally {
-      client.close();
+      client?.close();
     }
     return fn(null, data[0]);
   }
@@ -56,7 +56,7 @@ class MongoDbStore {
     } catch (err) {
       throw err;
     } finally {
-      client.close();
+      client?.close();
     }
 
     return fn(null, result);

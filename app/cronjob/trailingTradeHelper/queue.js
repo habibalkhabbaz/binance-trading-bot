@@ -1,135 +1,322 @@
 const _ = require('lodash');
+const Queue = require('bull');
+const config = require('config');
+const { executeTrailingTrade } = require('../index');
+const { mongo, binance, cache } = require('../../helpers');
+const { getConfiguration } = require('./configuration');
+const {
+  getGridTradeLastOrder,
+  updateGridTradeLastOrder,
+  getManualOrder,
+  saveManualOrder
+} = require('./order');
+const { saveOverrideAction } = require('./common');
 
-const startedJobs = {};
-const finishedJobs = {};
+const queues = {};
+const REDIS_URL = `redis://:${config.get('redis.password')}@${config.get(
+  'redis.host'
+)}:${config.get('redis.port')}/${config.get('redis.db')}`;
+
+const saveCandle = async (symbol, candle) => {
+  // Save latest candle for the symbol
+  await cache.hset(
+    'trailing-trade-symbols',
+    `${symbol}-latest-candle`,
+    JSON.stringify(candle)
+  );
+};
+
+const getCandles = async (logger, symbol) => {
+  await mongo.deleteAll(logger, 'trailing-trade-candles', {
+    key: symbol
+  });
+
+  const symbolConfiguration = await getConfiguration(logger, symbol);
+
+  const {
+    candles: { interval, limit }
+  } = symbolConfiguration;
+
+  // Retrieve candles
+  logger.info(
+    { debug: true, function: 'candles', interval, limit },
+    `Retrieving candles from API for ${symbol}`
+  );
+
+  const candles = await binance.client.candles({
+    symbol,
+    interval,
+    limit
+  });
+
+  const operations = candles.map(candle => ({
+    updateOne: {
+      filter: {
+        key: symbol,
+        time: +candle.openTime,
+        interval
+      },
+      update: {
+        $set: {
+          open: +candle.open,
+          high: +candle.high,
+          low: +candle.low,
+          close: +candle.close,
+          volume: +candle.volume
+        }
+      },
+      upsert: true
+    }
+  }));
+
+  await mongo.bulkWrite(logger, 'trailing-trade-candles', operations);
+};
+
+const getAthCandles = async (logger, symbol) => {
+  await mongo.deleteAll(logger, 'trailing-trade-ath-candles', {
+    key: symbol
+  });
+  const symbolConfiguration = await getConfiguration(logger, symbol);
+
+  const {
+    buy: {
+      athRestriction: {
+        enabled: buyATHRestrictionEnabled,
+        candles: {
+          interval: buyATHRestrictionCandlesInterval,
+          limit: buyATHRestrictionCandlesLimit
+        }
+      }
+    }
+  } = symbolConfiguration;
+
+  if (buyATHRestrictionEnabled === false) {
+    return;
+  }
+
+  // Retrieve ath candles
+  logger.info(
+    {
+      debug: true,
+      function: 'candles',
+      interval: buyATHRestrictionCandlesInterval,
+      limit: buyATHRestrictionCandlesLimit
+    },
+    `Retrieving ATH candles from API for ${symbol}`
+  );
+
+  const athCandles = await binance.client.candles({
+    symbol,
+    interval: buyATHRestrictionCandlesInterval,
+    limit: buyATHRestrictionCandlesLimit
+  });
+
+  const operations = athCandles.map(athCandle => ({
+    updateOne: {
+      filter: {
+        key: symbol,
+        time: +athCandle.openTime,
+        interval: buyATHRestrictionCandlesInterval
+      },
+      update: {
+        $set: {
+          open: +athCandle.open,
+          high: +athCandle.high,
+          low: +athCandle.low,
+          close: +athCandle.close,
+          volume: +athCandle.volume
+        }
+      },
+      upsert: true
+    }
+  }));
+
+  // Save ath candles for the symbol
+  await mongo.bulkWrite(logger, 'trailing-trade-ath-candles', operations);
+};
+
+const checkLastOrder = async (symbolLogger, symbol, evt) => {
+  const {
+    eventTime,
+    side,
+    orderStatus,
+    orderType,
+    stopPrice,
+    price,
+    orderId,
+    quantity,
+    isOrderWorking,
+    totalQuoteTradeQuantity,
+    totalTradeQuantity,
+    orderTime: transactTime // Transaction time
+  } = evt;
+
+  const lastOrder = await getGridTradeLastOrder(
+    symbolLogger,
+    symbol,
+    side.toLowerCase()
+  );
+
+  if (_.isEmpty(lastOrder) === false) {
+    // Skip if the orderId is not match with the existing orderId
+    // or Skip if the transaction time is older than the existing order transaction time
+    // This is helpful when we received a delayed event for any reason
+    if (
+      orderId !== lastOrder.orderId ||
+      transactTime < lastOrder.transactTime
+    ) {
+      symbolLogger.info(
+        { lastOrder, evt, saveLog: true },
+        'This order update is an old order. Do not update last grid trade order.'
+      );
+      return false;
+    }
+
+    const updatedOrder = {
+      ...lastOrder,
+      status: orderStatus,
+      type: orderType,
+      side,
+      stopPrice,
+      price,
+      origQty: quantity,
+      cummulativeQuoteQty: totalQuoteTradeQuantity,
+      executedQty: totalTradeQuantity,
+      isWorking: isOrderWorking,
+      updateTime: eventTime,
+      transactTime
+    };
+
+    await updateGridTradeLastOrder(
+      symbolLogger,
+      symbol,
+      side.toLowerCase(),
+      updatedOrder
+    );
+    symbolLogger.info(
+      { lastOrder, updatedOrder, saveLog: true },
+      `The last order has been updated. ${orderId} - ${side} - ${orderStatus}`
+    );
+
+    return true;
+  }
+
+  return false;
+};
+
+const checkManualOrder = async (symbolLogger, symbol, evt) => {
+  const {
+    eventTime,
+    side,
+    orderStatus,
+    orderType,
+    stopPrice,
+    price,
+    orderId,
+    quantity,
+    isOrderWorking,
+    totalQuoteTradeQuantity,
+    totalTradeQuantity
+  } = evt;
+
+  const manualOrder = await getManualOrder(symbolLogger, symbol, orderId);
+
+  if (_.isEmpty(manualOrder) === false) {
+    await saveManualOrder(symbolLogger, symbol, orderId, {
+      ...manualOrder,
+      status: orderStatus,
+      type: orderType,
+      side,
+      stopPrice,
+      price,
+      origQty: quantity,
+      cummulativeQuoteQty: totalQuoteTradeQuantity,
+      executedQty: totalTradeQuantity,
+      isWorking: isOrderWorking,
+      updateTime: eventTime
+    });
+
+    symbolLogger.info(
+      { symbol, manualOrder, saveLog: true },
+      'The manual order has been updated.'
+    );
+
+    return true;
+  }
+
+  return false;
+};
 
 /**
  * Prepare the job in queue
  *
  * @param {*} funcLogger
  * @param {*} symbol
- * @param {*} _jobPayload
  */
-const prepareJob = async (funcLogger, symbol, _jobPayload) => {
+const prepareJob = async (funcLogger, symbol) => {
   const logger = funcLogger.child({ helper: 'queue', func: 'prepareJob' });
 
-  // Initialize queue for symbol if not yet initialized
-  if (startedJobs[symbol] === undefined) {
-    startedJobs[symbol] = 0;
-    finishedJobs[symbol] = 0;
-
-    logger.info({ symbol }, `Queue ${symbol} initialized`);
+  if (symbol in queues) {
+    await queues[symbol].obliterate({ force: true });
   }
 
-  // Start a new job - wait if previous job is still running
-  const pos = (startedJobs[symbol] += 1) - 1;
-
-  if (pos > finishedJobs[symbol]) {
-    // Wait until previous job is completed
-    logger.info({ symbol }, `Queue ${symbol} job #${pos} waiting`);
-    while (pos > finishedJobs[symbol]) {
-      // eslint-disable-next-line no-await-in-loop, no-promise-executor-return
-      await new Promise(r => setTimeout(r, 10));
+  const queue = new Queue(symbol, REDIS_URL, {
+    prefix: `bull`,
+    defaultJobOptions: {
+      removeOnComplete: true,
+      removeOnFail: true
     }
-  }
+  });
 
-  logger.info({ symbol }, `Queue ${symbol} job #${pos} started`);
+  await queue.clean(0);
+  await queue.empty();
+  await queue.obliterate({ force: true });
 
-  return false; // continue
-};
-
-/**
- * Execute the job in queue
- *
- * @param {*} funcLogger
- * @param {*} symbol
- * @param {*} jobPayload
- */
-const executeJob = async (funcLogger, symbol, jobPayload) => {
-  const logger = funcLogger.child({ helper: 'queue', func: 'executeJob' });
-
-  // Preprocess before executeTrailingTrade
-  if (jobPayload.preprocessFn) {
-    // Return value of preprocessFn decides on calling of executeTrailingTrade
-    const result = await jobPayload.preprocessFn();
-
-    if (result === false) {
-      logger.info({ symbol }, `Queue ${symbol} job done`);
-      return false; // continue
+  // Set concurrent for the job
+  queue.process(1, async job => {
+    if (job.data.type === 'getCandles') {
+      await getCandles(logger, symbol);
+    }
+    if (job.data.type === 'getAthCandles') {
+      await getAthCandles(logger, symbol);
+    }
+    if (job.data.type === 'saveCandle') {
+      await saveCandle(symbol, job.data.candle);
+    }
+    if (job.data.type === 'checkOrder') {
+      await checkLastOrder(logger, symbol, job.data.evt);
+      await checkManualOrder(logger, symbol, job.data.evt);
+    }
+    if (job.data.type === 'saveOverrideAction') {
+      await saveOverrideAction(
+        logger,
+        symbol,
+        job.data.overrideData,
+        job.data.overrideReason
+      );
     }
 
-    logger.info({ symbol }, `Queue ${symbol} job preprocessed`);
-  }
+    return executeTrailingTrade(logger, symbol, job.data.correlationId);
+  });
 
-  // Execute the job
-  if (jobPayload.processFn) {
-    // processFn
-    await jobPayload.processFn(
-      funcLogger,
-      symbol,
-      _.get(jobPayload, 'correlationId')
-    );
-  }
+  queues[symbol] = queue;
 
-  // Postprocess after executeTrailingTrade
-  if (jobPayload.postprocessFn) {
-    // postprocessFn
-    await jobPayload.postprocessFn();
+  logger.info({ symbol }, `Queue ${symbol} prepared`);
 
-    logger.info({ symbol }, `Queue ${symbol} job postprocessed`);
-  }
-
-  return false; // continue
-};
-
-/**
- * Complete the job in queue
- *
- * @param {*} funcLogger
- * @param {*} symbol
- * @param {*} _jobPayload
- */
-const completeJob = async (funcLogger, symbol, _jobPayload) => {
-  const logger = funcLogger.child({ helper: 'queue', func: 'completeJob' });
-
-  const pos = (finishedJobs[symbol] += 1) - 1;
-
-  if (startedJobs[symbol] === finishedJobs[symbol]) {
-    // Last job in the queue finished
-    // Reset the counters
-    startedJobs[symbol] = (finishedJobs[symbol] -= startedJobs[symbol]) + 0;
-  }
-
-  logger.info({ symbol }, `Queue ${symbol} job #${pos} finished`);
-
-  return true; // completed
+  return true;
 };
 
 /**
  * Execute queue or preprocessFn
  *
- * @param {*} funcLogger
+ * @param {*} _funcLogger
  * @param {*} symbol
  * @param {*} jobPayload
  */
-const execute = async (funcLogger, symbol, jobPayload = {}) => {
-  const logger = funcLogger.child({ helper: 'queue' });
-
-  // Use chain of responsibilities pattern to handle the job execution.
-  // eslint-disable-next-line no-restricted-syntax
-  for (const executeFn of [prepareJob, executeJob, completeJob]) {
-    // eslint-disable-next-line no-await-in-loop
-    const result = await executeFn(logger, symbol, jobPayload);
-
-    if (result) {
-      logger.info({ symbol }, 'Queue job execution completed.');
-      break;
-    }
-  }
-};
+const execute = async (_funcLogger, symbol, jobPayload = {}) =>
+  queues[symbol].add(jobPayload);
 
 module.exports = {
   prepareJob,
-  completeJob,
   execute
 };

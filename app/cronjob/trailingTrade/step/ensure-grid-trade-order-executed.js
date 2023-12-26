@@ -260,7 +260,7 @@ const execute = async (logger, rawData) => {
             canResume: false,
             canRemoveLastBuyPrice: false
           },
-          temporaryDisableActionAfterConfirmingOrder
+          3
         );
 
         PubSub.publish('check-open-orders', {});

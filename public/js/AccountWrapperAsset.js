@@ -17,7 +17,7 @@ class AccountWrapperAsset extends React.Component {
                 isQuoteAsset === true && balance.quote === null
                   ? 'text-warning'
                   : ''
-              }`}>
+              } d-flex align-items-center`}>
               {(parseFloat(balance.free) + parseFloat(balance.locked)).toFixed(
                 5
               )}{' '}
@@ -27,7 +27,8 @@ class AccountWrapperAsset extends React.Component {
               ) : (
                 <button
                   type='button'
-                  className='btn btn-sm ml-1 mb-1 text-white'
+                  style={{ lineHeight: '15px' }}
+                  className='btn btn-sm ml-1 py-0 text-white'
                   onClick={() => this.props.setFilter(balance.asset)}>
                   <i className={'fas fa-search fa-sm'}></i>
                 </button>

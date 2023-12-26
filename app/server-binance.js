@@ -2,7 +2,6 @@ const _ = require('lodash');
 const config = require('config');
 const { PubSub, cache, mongo } = require('./helpers');
 const queue = require('./cronjob/trailingTradeHelper/queue');
-const { executeTrailingTrade } = require('./cronjob/index');
 
 const { maskConfig } = require('./cronjob/trailingTradeHelper/util');
 const {
@@ -79,8 +78,10 @@ const refreshCandles = async logger => {
   refreshTickersClean(logger);
 
   // empty all candles before restarting the bot
-  await mongo.deleteAll(logger, 'trailing-trade-candles', {});
-  await mongo.deleteAll(logger, 'trailing-trade-ath-candles', {});
+  await Promise.all([
+    mongo.deleteAll(logger, 'trailing-trade-candles', {}),
+    mongo.deleteAll(logger, 'trailing-trade-ath-candles', {})
+  ]);
 };
 
 /**
@@ -117,7 +118,7 @@ const syncAll = async logger => {
   await syncDatabaseOrders(logger);
 
   // Complete job for all symbols when all data has been retrieved
-  await Promise.all(symbols.map(symbol => queue.completeJob(logger, symbol)));
+  // await Promise.all(symbols.map(symbol => queue.completeJob(logger, symbol)));
 };
 
 /**
@@ -174,9 +175,7 @@ const setupBinance = async logger => {
     const symbols = _.keys(cachedOpenOrders);
 
     await Promise.all(
-      symbols.map(async symbol =>
-        queue.execute(logger, symbol, { processFn: executeTrailingTrade })
-      )
+      symbols.map(async symbol => queue.execute(logger, symbol))
     );
   });
 

@@ -1,6 +1,6 @@
 const config = require('config');
 const Redis = require('ioredis');
-const Redlock = require('redlock');
+// const Redlock = require('redlock');
 
 const redis = new Redis({
   host: config.get('redis.host'),
@@ -9,23 +9,23 @@ const redis = new Redis({
   db: config.get('redis.db')
 });
 
-const redlock = new Redlock([redis], {
-  // the expected clock drift; for more details
-  // see http://redis.io/topics/distlock
-  driftFactor: 0.01, // multiplied by lock ttl to determine drift time
+// const redlock = new Redlock([redis], {
+//   // the expected clock drift; for more details
+//   // see http://redis.io/topics/distlock
+//   driftFactor: 0.01, // multiplied by lock ttl to determine drift time
 
-  // the max number of times Redlock will attempt
-  // to lock a resource before erroring
-  retryCount: 4,
+//   // the max number of times Redlock will attempt
+//   // to lock a resource before erroring
+//   retryCount: 4,
 
-  // the time in ms between attempts
-  retryDelay: 200, // time in ms
+//   // the time in ms between attempts
+//   retryDelay: 200, // time in ms
 
-  // the max time in ms randomly added to retries
-  // to improve performance under high contention
-  // see https://www.awsarchitectureblog.com/2015/03/backoff.html
-  retryJitter: 200 // time in ms
-});
+//   // the max time in ms randomly added to retries
+//   // to improve performance under high contention
+//   // see https://www.awsarchitectureblog.com/2015/03/backoff.html
+//   retryJitter: 200 // time in ms
+// });
 
 /**
  * Get keys
@@ -43,7 +43,7 @@ const keys = async pattern => redis.keys(pattern);
  * @param {*} ttl seconds
  */
 const set = async (key, value, ttl = undefined) => {
-  const lock = await redlock.lock(`redlock:${key}`, 1000);
+  // const lock = await redlock.lock(`redlock:${key}`, 1000);
 
   let result;
   if (ttl) {
@@ -52,7 +52,7 @@ const set = async (key, value, ttl = undefined) => {
     result = await redis.set(key, value);
   }
 
-  await lock.unlock();
+  // await lock.unlock();
   return result;
 };
 
@@ -63,9 +63,9 @@ const set = async (key, value, ttl = undefined) => {
  * @param {*} key
  */
 const get = async key => {
-  const lock = await redlock.lock(`redlock:${key}`, 1000);
+  // const lock = await redlock.lock(`redlock:${key}`, 1000);
   const result = await redis.get(key);
-  await lock.unlock();
+  // await lock.unlock();
 
   return result;
 };
@@ -93,9 +93,9 @@ const getWithTTL = async key => redis.multi().ttl(key).get(key).exec();
  * @param {*} key
  */
 const del = async key => {
-  const lock = await redlock.lock(`redlock:${key}`, 1000);
+  // const lock = await redlock.lock(`redlock:${key}`, 1000);
   const result = await redis.del(key);
-  await lock.unlock();
+  // await lock.unlock();
   return result;
 };
 

@@ -44,7 +44,27 @@ class App extends React.Component {
           label: 'Sell - Profit (desc)'
         },
         { sortBy: 'alpha', sortByDesc: false, label: 'Alphabetical (asc)' },
-        { sortBy: 'alpha', sortByDesc: true, label: 'Alphabetical (desc)' }
+        { sortBy: 'alpha', sortByDesc: true, label: 'Alphabetical (desc)' },
+        {
+          sortBy: 'liquidity',
+          sortByDesc: false,
+          label: 'Liquidity (asc)'
+        },
+        {
+          sortBy: 'liquidity',
+          sortByDesc: true,
+          label: 'Liquidity (desc)'
+        },
+        {
+          sortBy: 'hybrid',
+          sortByDesc: false,
+          label: 'Hybrid (asc)'
+        },
+        {
+          sortBy: 'hybrid',
+          sortByDesc: true,
+          label: 'Hybrid (desc)'
+        }
       ],
       selectedSortOption: {
         sortBy: 'default',
@@ -383,7 +403,8 @@ class App extends React.Component {
       isLoaded,
       totalProfitAndLoss,
       page,
-      totalPages
+      totalPages,
+      botOptions
     } = this.state;
 
     if (isLoaded === false) {
@@ -398,15 +419,7 @@ class App extends React.Component {
       return <APIError />;
     }
 
-    const activeSymbols = selectedSortOption.hideInactive
-      ? symbols.filter(
-          s =>
-            s.symbolConfiguration.buy.enabled ||
-            s.symbolConfiguration.sell.enabled
-        )
-      : symbols;
-
-    const coinWrappers = activeSymbols.map((symbol, index) => {
+    const coinWrappers = symbols.map((symbol, index) => {
       return (
         <CoinWrapper
           extraClassName={
@@ -509,6 +522,8 @@ class App extends React.Component {
                 selectedSortOption={selectedSortOption}
                 searchKeyword={searchKeyword}
                 setSearchKeyword={this.setSearchKeyword}
+                maxBuyOpenOrders={botOptions.orderLimit.maxBuyOpenOrders}
+                maxOpenTrades={botOptions.orderLimit.maxOpenTrades}
               />
             </div>
             <Pagination>{paginationItems}</Pagination>

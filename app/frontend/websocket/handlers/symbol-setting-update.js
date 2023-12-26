@@ -4,7 +4,6 @@ const {
   saveSymbolConfiguration
 } = require('../../../cronjob/trailingTradeHelper/configuration');
 const queue = require('../../../cronjob/trailingTradeHelper/queue');
-const { executeTrailingTrade } = require('../../../cronjob/index');
 
 const handleSymbolSettingUpdate = async (logger, ws, payload) => {
   logger.info({ payload }, 'Start symbol setting update');
@@ -17,40 +16,36 @@ const handleSymbolSettingUpdate = async (logger, ws, payload) => {
   const symbolConfiguration = await getSymbolConfiguration(logger, symbol);
   logger.info({ symbolConfiguration }, 'Current symbol configuration');
 
-  const symbolConfigurationFn = async () => {
-    // Get only editable params
-    const { candles, buy, sell, botOptions } = newSymbolConfiguration;
-    symbolConfiguration.candles = candles;
+  // Get only editable params
+  const { candles, buy, sell, botOptions } = newSymbolConfiguration;
+  symbolConfiguration.candles = candles;
 
-    // We do not want to save executed/executedOrder as it will be processed in the configuration.
-    buy.gridTrade = buy.gridTrade.map(b =>
-      _.omit(b, 'executed', 'executedOrder')
-    );
-    sell.gridTrade = sell.gridTrade.map(b =>
-      _.omit(b, 'executed', 'executedOrder')
-    );
+  // We do not want to save executed/executedOrder as it will be processed in the configuration.
+  buy.gridTrade = buy.gridTrade.map(b =>
+    _.omit(b, 'executed', 'executedOrder')
+  );
+  sell.gridTrade = sell.gridTrade.map(b =>
+    _.omit(b, 'executed', 'executedOrder')
+  );
 
-    symbolConfiguration.buy = _.omit(
-      buy,
-      'currentGridTradeIndex',
-      'currentGridTrade'
-    );
-    symbolConfiguration.sell = _.omit(
-      sell,
-      'currentGridTradeIndex',
-      'currentGridTrade'
-    );
-    symbolConfiguration.botOptions = botOptions;
+  symbolConfiguration.buy = _.omit(
+    buy,
+    'currentGridTradeIndex',
+    'currentGridTrade'
+  );
+  symbolConfiguration.sell = _.omit(
+    sell,
+    'currentGridTradeIndex',
+    'currentGridTrade'
+  );
+  symbolConfiguration.botOptions = botOptions;
 
-    logger.info({ symbolConfiguration }, 'Updated symbol configuration');
+  logger.info({ symbolConfiguration }, 'Updated symbol configuration');
 
-    await saveSymbolConfiguration(logger, symbol, symbolConfiguration);
-  };
+  await saveSymbolConfiguration(logger, symbol, symbolConfiguration);
 
-  queue.execute(logger, symbol, {
-    correlationId: _.get(logger, 'fields.correlationId', ''),
-    preprocessFn: symbolConfigurationFn,
-    processFn: executeTrailingTrade
+  await queue.execute(logger, symbol, {
+    correlationId: _.get(logger, 'fields.correlationId', '')
   });
 
   ws.send(

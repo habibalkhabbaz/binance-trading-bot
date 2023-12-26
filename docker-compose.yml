@@ -2,7 +2,7 @@ version: '3.7'
 
 services:
   binance-bot:
-    container_name: binance-bot
+    container_name: binance-bot-dev
     build:
       context: ./
       target: dev-stage
@@ -19,15 +19,15 @@ services:
       - .env
     restart: unless-stopped
     environment:
-      - BINANCE_MODE=test
-      # - BINANCE_MODE=live
+      #      - BINANCE_MODE=test
+      - BINANCE_MODE=live
       - BINANCE_REDIS_HOST=binance-redis
       - BINANCE_REDIS_PORT=6379
       - BINANCE_REDIS_PASSWORD=secretp422
       - BINANCE_TRADINGVIEW_HOST=tradingview
       - BINANCE_TRADINGVIEW_PORT=8082
     ports:
-      - 8080:80
+      - '8080:80'
     logging:
       driver: 'json-file'
       options:
@@ -43,25 +43,25 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       # https://docs.python.org/3/howto/logging.html#logging-levels
-      - BINANCE_TRADINGVIEW_LOG_LEVEL=INFO
+      - BINANCE_TRADINGVIEW_LOG_LEVEL=ERROR
       - BINANCE_TRADINGVIEW_PORT=8082
     ports:
-      - 8082:8082
+      - '8082:8082'
     logging:
       driver: 'json-file'
       options:
         max-size: '50m'
 
   binance-redis:
-    container_name: binance-redis
-    image: redis:6.2.4
+    container_name: binance-redis-dev
+    image: redis:6.2.14
     sysctls:
       net.core.somaxconn: 1024
     restart: unless-stopped
     networks:
       - internal
     ports:
-      - 6379:6379
+      - '6379:6379'
     volumes:
       - redis_data:/data
       - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
@@ -69,7 +69,7 @@ services:
       redis-server /usr/local/etc/redis/redis.conf --requirepass secretp422
 
   binance-mongo:
-    container_name: binance-mongo
+    container_name: binance-mongo-dev
     image: mongo:3.2.20-jessie
     restart: unless-stopped
     networks:
@@ -78,15 +78,15 @@ services:
       - mongo_data:/data/db
 
   binance-mongo-express:
-    container_name: binance-mongo-express
+    container_name: binance-mongo-express-dev
     image: mongo-express:0.54
     restart: unless-stopped
     networks:
       - internal
     ports:
-      - 8081:8081
+      - '8081:8081'
     environment:
-      ME_CONFIG_MONGODB_SERVER: binance-mongo
+      ME_CONFIG_MONGODB_SERVER: binance-mongo-dev
 
 networks:
   internal:

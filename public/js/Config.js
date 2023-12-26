@@ -5,9 +5,9 @@ const config = {
   webSocketUrl:
     location.protocol === 'https:'
       ? `wss://${location.hostname}${
-          location.port !== 80 ? ':' + location.port : ''
+          location.port !== '80' ? ':' + location.port : ''
         }`
       : `ws://${location.hostname}${
-          location.port !== 80 ? ':' + location.port : ''
+          location.port !== '80' ? ':' + location.port : ''
         }`
 };

@@ -1,9 +1,11 @@
 const _ = require('lodash');
-const { binance, mongo } = require('../helpers');
+const { v4: uuidv4 } = require('uuid');
+const { binance } = require('../helpers');
 const {
   getConfiguration
 } = require('../cronjob/trailingTradeHelper/configuration');
 const { saveCandle } = require('../cronjob/trailingTradeHelper/common');
+const queue = require('../cronjob/trailingTradeHelper/queue');
 
 let websocketATHCandlesClean = {};
 
@@ -36,7 +38,8 @@ const setupATHCandlesWebsocket = async (logger, symbols) => {
     } = symbolConfiguration;
 
     if (buyATHRestrictionEnabled === false) {
-      return;
+      // eslint-disable-next-line no-continue
+      continue;
     }
 
     if (!athSymbolsGroupedByIntervals[buyATHRestrictionCandlesInterval]) {
@@ -77,74 +80,12 @@ const setupATHCandlesWebsocket = async (logger, symbols) => {
  */
 const syncATHCandles = async (logger, symbols) => {
   await Promise.all(
-    symbols.map(async symbol => {
-      await mongo.deleteAll(logger, 'trailing-trade-ath-candles', {
-        key: symbol
-      });
-      const symbolConfiguration = await getConfiguration(logger, symbol);
-
-      const {
-        buy: {
-          athRestriction: {
-            enabled: buyATHRestrictionEnabled,
-            candles: {
-              interval: buyATHRestrictionCandlesInterval,
-              limit: buyATHRestrictionCandlesLimit
-            }
-          }
-        }
-      } = symbolConfiguration;
-
-      const getCandles = async () => {
-        if (buyATHRestrictionEnabled) {
-          // Retrieve ath candles
-          logger.info(
-            {
-              debug: true,
-              function: 'candles',
-              interval: buyATHRestrictionCandlesInterval,
-              limit: buyATHRestrictionCandlesLimit
-            },
-            `Retrieving ATH candles from API for ${symbol}`
-          );
-
-          const athCandles = await binance.client.candles({
-            symbol,
-            interval: buyATHRestrictionCandlesInterval,
-            limit: buyATHRestrictionCandlesLimit
-          });
-
-          const operations = athCandles.map(athCandle => ({
-            updateOne: {
-              filter: {
-                key: symbol,
-                time: +athCandle.openTime,
-                interval: buyATHRestrictionCandlesInterval
-              },
-              update: {
-                $set: {
-                  open: +athCandle.open,
-                  high: +athCandle.high,
-                  low: +athCandle.low,
-                  close: +athCandle.close,
-                  volume: +athCandle.volume
-                }
-              },
-              upsert: true
-            }
-          }));
-
-          // Save ath candles for the symbol
-          await mongo.bulkWrite(
-            logger,
-            'trailing-trade-ath-candles',
-            operations
-          );
-        }
-      };
-
-      return getCandles();
-    })
+    symbols.map(async symbol =>
+      queue.execute(logger, symbol, {
+        correlationId: uuidv4(),
+        type: 'getAthCandles'
+      })
+    )
   );
 };
 

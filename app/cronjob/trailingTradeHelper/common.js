@@ -14,13 +14,13 @@ const getCachedExchangeSymbols = async _logger =>
   JSON.parse(await cache.hget('trailing-trade-common', 'exchange-symbols')) ||
   {};
 
-const getCachedExchangeInfo = async logger => {
+const getCachedExchangeInfo = async (logger, force = false) => {
   const cachedExchangeInfo =
     JSON.parse(await cache.hget('trailing-trade-common', 'exchange-info')) ||
     {};
 
   let exchangeInfo = cachedExchangeInfo;
-  if (_.isEmpty(cachedExchangeInfo) === true) {
+  if (_.isEmpty(cachedExchangeInfo) === true || force) {
     logger.info(
       { function: 'exchangeInfo' },
       'Retrieving exchange info from API'
@@ -38,24 +38,25 @@ const getCachedExchangeInfo = async logger => {
 };
 
 /**
- * Retreive cached exhcnage symbols.
+ * Retrieve cached exchange symbols.
  *  If not cached, retrieve exchange info from API and cache it.
  *
  * @param {*} logger
  */
-const cacheExchangeSymbols = async logger => {
+const cacheExchangeSymbols = async (logger, force = false) => {
   const cachedExchangeSymbols = await getCachedExchangeSymbols(logger);
   // If there is already cached exchange symbols, don't need to cache again.
   if (
     _.isEmpty(cachedExchangeSymbols) === false &&
     // For backward compatibility, verify the cached value is valid.
-    isValidCachedExchangeSymbols(cachedExchangeSymbols) === true
+    isValidCachedExchangeSymbols(cachedExchangeSymbols) === true &&
+    !force
   ) {
     return;
   }
 
   // Retrieve cached exchange information
-  const exchangeInfo = await getCachedExchangeInfo(logger);
+  const exchangeInfo = await getCachedExchangeInfo(logger, force);
 
   logger.info('Retrieved exchange info from API');
 
@@ -335,7 +336,7 @@ const removeLastBuyPrice = async (logger, symbol) => {
  * @param {*} logger
  * @param {*} symbol
  * @param {*} reason
- * @param {*} ttl
+ * @param {*} ttl seconds
  *
  * @returns
  */
@@ -931,27 +932,36 @@ const getCacheTrailingTradeSymbols = async (
   sortByParam,
   page,
   symbolsPerPage,
-  searchKeyword
+  searchKeyword,
+  hideInactive
 ) => {
-  const match = {};
+  const columns = {};
+  const match = {
+    $or: [columns]
+  };
 
   if (searchKeyword === 'open trades') {
     const openTradesSymbols = await getOpenTradesSymbols(logger);
-    match.symbol = {
+    columns.symbol = {
       $regex: `(${openTradesSymbols.join('|')})`,
       $options: 'i'
     };
   } else if (searchKeyword === 'open orders') {
     const openOrdersSymbols = await getOpenOrdersSymbols(logger);
-    match.symbol = {
+    columns.symbol = {
       $regex: `(${openOrdersSymbols.join('|')})`,
       $options: 'i'
     };
   } else if (searchKeyword) {
-    match.symbol = {
+    columns.symbol = {
       $regex: searchKeyword,
       $options: 'i'
     };
+  }
+
+  if (hideInactive) {
+    columns['symbolConfiguration.buy.enabled'] = true;
+    columns['symbolConfiguration.sell.enabled'] = true;
   }
 
   const sortBy = sortByParam || 'default';

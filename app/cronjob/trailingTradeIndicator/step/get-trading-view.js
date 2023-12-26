@@ -75,10 +75,8 @@ const retrieveTradingView = async (logger, symbols, interval) => {
 
     const response = await axios.get(tradingviewUrl, {
       params,
-      paramsSerializer:
-        /* istanbul ignore next */
-        p => qs.stringify(p, { arrayFormat: 'repeat' }),
-      timeout: 20000 // timeout 20 seconds
+      paramsSerializer: p => qs.stringify(p, { arrayFormat: 'repeat' }),
+      timeout: 5000 // timeout 5 seconds
     });
     const tradingViewResult = _.get(response.data, 'result', {});
 

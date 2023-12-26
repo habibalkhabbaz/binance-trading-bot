@@ -1,8 +1,7 @@
 const { v4: uuidv4 } = require('uuid');
 const _ = require('lodash');
 const queue = require('../cronjob/trailingTradeHelper/queue');
-const { executeTrailingTrade } = require('../cronjob/index');
-const { binance, mongo } = require('../helpers');
+const { binance } = require('../helpers');
 const {
   getConfiguration
 } = require('../cronjob/trailingTradeHelper/configuration');
@@ -69,56 +68,9 @@ const setupCandlesWebsocket = async (logger, symbols) => {
 const syncCandles = async (logger, symbols) => {
   await Promise.all(
     symbols.map(async symbol => {
-      const getCandles = async () => {
-        await mongo.deleteAll(logger, 'trailing-trade-candles', {
-          key: symbol
-        });
-
-        const symbolConfiguration = await getConfiguration(logger, symbol);
-
-        const {
-          candles: { interval, limit }
-        } = symbolConfiguration;
-
-        // Retrieve candles
-        logger.info(
-          { debug: true, function: 'candles', interval, limit },
-          `Retrieving candles from API for ${symbol}`
-        );
-
-        const candles = await binance.client.candles({
-          symbol,
-          interval,
-          limit
-        });
-
-        const operations = candles.map(candle => ({
-          updateOne: {
-            filter: {
-              key: symbol,
-              time: +candle.openTime,
-              interval
-            },
-            update: {
-              $set: {
-                open: +candle.open,
-                high: +candle.high,
-                low: +candle.low,
-                close: +candle.close,
-                volume: +candle.volume
-              }
-            },
-            upsert: true
-          }
-        }));
-
-        await mongo.bulkWrite(logger, 'trailing-trade-candles', operations);
-      };
-
       queue.execute(logger, symbol, {
         correlationId: uuidv4(),
-        preprocessFn: getCandles,
-        processFn: executeTrailingTrade
+        type: 'getCandles'
       });
     })
   );

@@ -18,9 +18,11 @@ const handleSymbolDelete = async (logger, ws, payload) => {
     )
   );
 
-  [`${symbol}-last-buy-price`].forEach(async key => {
-    await mongo.deleteOne(logger, 'trailing-trade-symbols', { key });
-  });
+  await Promise.all(
+    [`${symbol}-last-buy-price`].map(async key =>
+      mongo.deleteOne(logger, 'trailing-trade-symbols', { key })
+    )
+  );
 
   await mongo.deleteOne(logger, 'trailing-trade-cache', { symbol });
 

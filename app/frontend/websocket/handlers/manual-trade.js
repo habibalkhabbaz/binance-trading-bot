@@ -1,10 +1,6 @@
 const _ = require('lodash');
 const moment = require('moment');
-const {
-  saveOverrideAction
-} = require('../../../cronjob/trailingTradeHelper/common');
 const queue = require('../../../cronjob/trailingTradeHelper/queue');
-const { executeTrailingTrade } = require('../../../cronjob/index');
 
 const handleManualTrade = async (logger, ws, payload) => {
   logger.info({ payload }, 'Start manual trade');
@@ -13,24 +9,17 @@ const handleManualTrade = async (logger, ws, payload) => {
     data: { symbol, order }
   } = payload;
 
-  const saveOverrideActionFn = async () => {
-    await saveOverrideAction(
-      logger,
-      symbol,
-      {
-        action: 'manual-trade',
-        order,
-        actionAt: moment().toISOString(),
-        triggeredBy: 'user'
-      },
-      'The manual order received by the bot. Wait for placing the order.'
-    );
-  };
-
-  queue.execute(logger, symbol, {
+  await queue.execute(logger, symbol, {
     correlationId: _.get(logger, 'fields.correlationId', ''),
-    preprocessFn: saveOverrideActionFn,
-    processFn: executeTrailingTrade
+    type: 'saveOverrideAction',
+    overrideData: {
+      action: 'manual-trade',
+      order,
+      actionAt: moment().toISOString(),
+      triggeredBy: 'user'
+    },
+    overrideReason:
+      'The manual order received by the bot. Wait for placing the order.'
   });
 
   ws.send(

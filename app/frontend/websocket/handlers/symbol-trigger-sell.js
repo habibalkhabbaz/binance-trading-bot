@@ -1,10 +1,6 @@
 const _ = require('lodash');
 const moment = require('moment');
-const {
-  saveOverrideAction
-} = require('../../../cronjob/trailingTradeHelper/common');
 const queue = require('../../../cronjob/trailingTradeHelper/queue');
-const { executeTrailingTrade } = require('../../../cronjob/index');
 
 const handleSymbolTriggerSell = async (logger, ws, payload) => {
   logger.info({ payload }, 'Start symbol trigger sell');
@@ -13,23 +9,16 @@ const handleSymbolTriggerSell = async (logger, ws, payload) => {
 
   const { symbol } = symbolInfo;
 
-  const saveOverrideActionFn = async () => {
-    await saveOverrideAction(
-      logger,
-      symbol,
-      {
-        action: 'sell',
-        actionAt: moment().toISOString(),
-        triggeredBy: 'user'
-      },
-      'The sell order received by the bot. Wait for placing the order.'
-    );
-  };
-
-  queue.execute(logger, symbol, {
+  await queue.execute(logger, symbol, {
     correlationId: _.get(logger, 'fields.correlationId', ''),
-    preprocessFn: saveOverrideActionFn,
-    processFn: executeTrailingTrade
+    type: 'saveOverrideAction',
+    overrideData: {
+      action: 'sell',
+      actionAt: moment().toISOString(),
+      triggeredBy: 'user'
+    },
+    overrideReason:
+      'The sell order received by the bot. Wait for placing the order.'
   });
 
   ws.send(JSON.stringify({ result: true, type: 'symbol-trigger-sell-result' }));

@@ -85,21 +85,16 @@ const execute = async (logger, rawData) => {
   const stopPrice = roundDown(currentPrice * stopPercentage, pricePrecision);
   const limitPrice = roundDown(currentPrice * limitPercentage, pricePrecision);
 
-  const freeBalance = parseFloat(_.floor(baseAssetFreeBalance, lotPrecision));
+  const freeBalance = _.floor(baseAssetFreeBalance, lotPrecision);
   logger.info({ freeBalance }, 'Free balance');
 
   // If after calculating quantity percentage, it is not enough minimum notional, then simply sell all balance
-  let orderQuantity = parseFloat(
-    _.floor(freeBalance - freeBalance * (0.1 / 100), lotPrecision)
-  );
+  let orderQuantity = freeBalance;
 
   // When order quantity multiply quantity percentage is more than minimum notional
-  const orderQuantityWithPercentage = parseFloat(
-    _.floor(
-      freeBalance * quantityPercentage -
-        freeBalance * quantityPercentage * (0.1 / 100),
-      lotPrecision
-    )
+  const orderQuantityWithPercentage = _.floor(
+    freeBalance * quantityPercentage,
+    lotPrecision
   );
 
   logger.info(

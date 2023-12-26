@@ -17,7 +17,8 @@ const {
 const handleLatest = async (logger, ws, payload) => {
   const globalConfiguration = await getConfiguration(logger);
 
-  const { sortByDesc, sortBy, searchKeyword, page } = payload.data;
+  const { sortByDesc, sortBy, searchKeyword, page, hideInactive } =
+    payload.data;
 
   // If not authenticated and lock list is enabled, then do not send any information.
   if (
@@ -66,12 +67,54 @@ const handleLatest = async (logger, ws, payload) => {
     sortBy,
     page,
     symbolsPerPage,
-    searchKeyword
+    searchKeyword,
+    hideInactive
   );
+
+  // if (hideInactive) {
+  //   symbols = symbols.filter(
+  //     s =>
+  //       s.symbolConfiguration.buy.enabled || s.symbolConfiguration.sell.enabled
+  //   );
+  // }
+
+  // const sortedSymbols = await sortingSymbols(logger, symbols, {
+  //   selectedSortOption: sortBy,
+  //   searchKeyword,
+  //   direction: sortByDesc ? 'desc' : 'asc'
+  // });
+
+  // const paginatedItems = getPaginatedItems(sortedSymbols, page, symbolsPerPage);
+
+  // const cacheTrailingTradeSymbols = paginatedItems.data;
 
   // Calculate total profit/loss
   const cacheTrailingTradeTotalProfitAndLoss =
     await getCacheTrailingTradeTotalProfitAndLoss(logger);
+  // const cacheTrailingTradeTotalProfitAndLoss = {};
+  // _.forEach(symbols, s => {
+  //   if (
+  //     cacheTrailingTradeTotalProfitAndLoss[s.quoteAssetBalance.asset] ===
+  //     undefined
+  //   ) {
+  //     cacheTrailingTradeTotalProfitAndLoss[s.quoteAssetBalance.asset] = {
+  //       asset: s.quoteAssetBalance.asset,
+  //       amount: 0,
+  //       profit: 0,
+  //       estimatedBalance: 0,
+  //       free: s.quoteAssetBalance.free,
+  //       locked: s.quoteAssetBalance.locked
+  //     };
+  //   }
+
+  //   cacheTrailingTradeTotalProfitAndLoss[s.quoteAssetBalance.asset].amount +=
+  //     parseFloat(s.baseAssetBalance.total) * s.sell.lastBuyPrice;
+  //   cacheTrailingTradeTotalProfitAndLoss[s.quoteAssetBalance.asset].profit +=
+  //     s.sell.currentProfit;
+  //   cacheTrailingTradeTotalProfitAndLoss[
+  //     s.quoteAssetBalance.asset
+  //   ].estimatedBalance += s.baseAssetBalance.estimatedValue;
+  // });
 
   const cacheTrailingTradeClosedTrades = _.map(
     await cache.hgetall(
@@ -107,6 +150,8 @@ const handleLatest = async (logger, ws, payload) => {
 
   const cacheTrailingTradeQuoteEstimates =
     await getCacheTrailingTradeQuoteEstimates(logger);
+  // const cacheTrailingTradeQuoteEstimates = {};
+
   const quoteEstimatesGroupedByBaseAsset = _.groupBy(
     cacheTrailingTradeQuoteEstimates,
     'baseAsset'
@@ -157,6 +202,7 @@ const handleLatest = async (logger, ws, payload) => {
       )
     },
     closedTrades: cacheTrailingTradeClosedTrades,
+    // totalProfitAndLoss: Object.values(cacheTrailingTradeTotalProfitAndLoss),
     totalProfitAndLoss: cacheTrailingTradeTotalProfitAndLoss,
     streamsCount,
     monitoringSymbolsCount,

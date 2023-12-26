@@ -1,5 +1,5 @@
 const { v4: uuidv4 } = require('uuid');
-const WebSocket = require('ws');
+const { Server: WebSocketServer } = require('ws');
 const config = require('config');
 
 const {
@@ -42,14 +42,10 @@ const handleWarning = (logger, ws, message) => {
 
 const configureWebSocket = async (server, funcLogger, { loginLimiter }) => {
   const logger = funcLogger.child({ server: 'websocket' });
-  const wss = new WebSocket.Server({
-    noServer: true
-  });
+  const wss = new WebSocketServer({ noServer: true });
 
   wss.on('connection', ws => {
     ws.on('message', async message => {
-      logger.info({ message }, 'received');
-
       // eslint-disable-next-line no-underscore-dangle
       const clientIp = ws._socket.remoteAddress;
       const rateLimiterLogin = await loginLimiter.get(clientIp);
@@ -144,8 +140,8 @@ const configureWebSocket = async (server, funcLogger, { loginLimiter }) => {
   });
 
   server.on('upgrade', (request, socket, head) => {
-    wss.handleUpgrade(request, socket, head, wSocket => {
-      wss.emit('connection', wSocket, request);
+    wss.handleUpgrade(request, socket, head, ws => {
+      wss.emit('connection', ws, request);
     });
   });
 

@@ -20,25 +20,10 @@ class CoinWrapperSetting extends React.Component {
   isCustomised = configurationKeyName =>
     configurationKeyName !== 'configuration';
 
-  jsonValueAtPath = (obj, path) => {
-    // Extract the value of the object at the given path
-    const value = path.split('.').reduce((acc, key) => {
-      if (key.includes('[')) {
-        const index = key.match(/\d+/)[0];
-        const arrKey = key.split('[')[0];
-        return acc[arrKey][index];
-      } else {
-        if (acc && acc.hasOwnProperty(key)) return acc[key];
-        else return -1;
-      }
-    }, obj);
-    return value;
-  };
-
   warnIfAttributeCustomised = (path, globalPath = path) => {
     if (
-      this.jsonValueAtPath(this.props.symbolInfo.symbolConfiguration, path) !==
-      this.jsonValueAtPath(this.props.configuration, globalPath)
+      _.get(this.props.symbolInfo.symbolConfiguration, path) !==
+      _.get(this.props.configuration, globalPath)
     )
       return 'text-warning';
     else return '';

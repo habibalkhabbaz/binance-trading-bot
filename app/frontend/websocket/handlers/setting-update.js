@@ -6,15 +6,17 @@ const {
   saveGlobalConfiguration,
   deleteAllSymbolConfiguration
 } = require('../../../cronjob/trailingTradeHelper/configuration');
+const {
+  cacheExchangeSymbols
+} = require('../../../cronjob/trailingTradeHelper/common');
 
 /**
  * Quick fix to delete all cached symbol info
  *
  * @param {*} logger
  */
-const deleteAllCachedSymbolInfo = async logger => {
-  await cache.hdel('trailing-trade-common', 'exchange-symbols');
-  await cache.hdel('trailing-trade-common', 'exchange-info');
+const forceCacheSymbolInfo = async logger => {
+  await cacheExchangeSymbols(logger, true);
 
   const symbolKeys = await cache.hgetall(
     'trailing-trade-symbols:',
@@ -73,8 +75,8 @@ const handleSettingUpdate = async (logger, ws, payload) => {
 
   await saveGlobalConfiguration(logger, mergedConfiguration);
 
-  // Delete cached exchange symbols to retrieve again.
-  await deleteAllCachedSymbolInfo(logger);
+  // force exchange symbols to retrieve and cache again.
+  await forceCacheSymbolInfo(logger);
 
   if (action === 'apply-to-all') {
     // In this case delete all symbol configuration
