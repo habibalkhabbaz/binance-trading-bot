@@ -29,6 +29,8 @@ log
 
 docker-compose.yml
 docker-compose.server.yml
+docker-compose.rpi.yml
+docker-compose.arm64.yml
 
 .git
 

@@ -3,11 +3,13 @@ const { MongoClient } = require('mongodb');
 
 const clusterUrl = `${config.get('mongo.host')}:${config.get('mongo.port')}`;
 
-const uri = `mongodb://${clusterUrl}/?retryWrites=true&writeConcern=majority`;
+const uri = `mongodb://${clusterUrl}/`;
 
 const client = new MongoClient(uri, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
+  retryWrites: true,
+  writeConcern: {
+    w: 'majority'
+  }
 });
 
 let database;

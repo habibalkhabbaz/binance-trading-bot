@@ -23,7 +23,6 @@ services:
       - BINANCE_MODE=live
       - BINANCE_REDIS_HOST=binance-redis
       - BINANCE_REDIS_PORT=6379
-      - BINANCE_REDIS_PASSWORD=secretp422
       - BINANCE_TRADINGVIEW_HOST=tradingview
       - BINANCE_TRADINGVIEW_PORT=8082
     ports:
@@ -54,23 +53,32 @@ services:
 
   binance-redis:
     container_name: binance-redis-dev
-    image: redis:6.2.14
-    sysctls:
-      net.core.somaxconn: 1024
+    image: 'docker.dragonflydb.io/dragonflydb/dragonfly'
+    # sysctls:
+    #   #vm.swappiness: 0
+    #   net.ipv4.tcp_sack: 1
+    #   net.ipv4.tcp_timestamps: 1
+    #   net.ipv4.tcp_window_scaling: 1
+    #   net.ipv4.tcp_congestion_control: cubic
+    #   net.ipv4.tcp_syncookies: 1
+    #   net.ipv4.tcp_tw_reuse: 1
+    #   net.ipv4.tcp_max_syn_backlog: 3240000
+    #   net.core.somaxconn: 65536
     restart: unless-stopped
     networks:
       - internal
+    ulimits:
+      memlock: -1
     ports:
       - '6379:6379'
     volumes:
-      - redis_data:/data
-      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
-    command:
-      redis-server /usr/local/etc/redis/redis.conf --requirepass secretp422
+      - dragonfly_data:/data
+      # - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
+    command: dragonfly --hz=1000 --cluster_mode=emulated --lock_on_hashtags
 
   binance-mongo:
     container_name: binance-mongo-dev
-    image: mongo:3.2.20-jessie
+    image: mongo:7.0.4-jammy
     restart: unless-stopped
     networks:
       - internal
@@ -79,21 +87,21 @@ services:
 
   binance-mongo-express:
     container_name: binance-mongo-express-dev
-    image: mongo-express:0.54
+    image: mongo-express:1.0
     restart: unless-stopped
     networks:
       - internal
     ports:
       - '8081:8081'
     environment:
-      ME_CONFIG_MONGODB_SERVER: binance-mongo-dev
+      - ME_CONFIG_MONGODB_SERVER=binance-mongo-dev
+      - ME_CONFIG_BASICAUTH_USERNAME=admin
+      - ME_CONFIG_BASICAUTH_PASSWORD=admin
 
 networks:
   internal:
     driver: bridge
-    # driver_opts:
-    #     com.docker.network.driver.mtu: 1442
 
 volumes:
-  redis_data:
+  dragonfly_data:
   mongo_data:

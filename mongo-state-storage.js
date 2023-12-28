@@ -12,10 +12,7 @@ class MongoDbStore {
     let client = null;
     let data = null;
     try {
-      client = await MongoClient.connect(url, {
-        useNewUrlParser: true,
-        useUnifiedTopology: true
-      });
+      client = await MongoClient.connect(url);
       const db = client.db(config.get('mongo.database'));
       data = await db.collection('trailing-trade-migrations').find().toArray();
       if (data.length !== 1) {
@@ -36,10 +33,7 @@ class MongoDbStore {
     let client = null;
     let result = null;
     try {
-      client = await MongoClient.connect(url, {
-        useNewUrlParser: true,
-        useUnifiedTopology: true
-      });
+      client = await MongoClient.connect(url);
       const db = client.db(config.get('mongo.database'));
       result = await db.collection('trailing-trade-migrations').updateMany(
         {},

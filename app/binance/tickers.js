@@ -47,6 +47,10 @@ const setupTickersWebsocket = async (logger, symbols) => {
 
         const { eventType, eventTime, curDayClose: close, symbol } = ticker;
 
+        if (symbol === 'BTCUSDT') {
+          logger.error({ eventTime, close });
+        }
+
         const symbolLogger = logger.child({
           correlationId,
           symbol

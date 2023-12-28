@@ -6,7 +6,9 @@ const redis = new Redis({
   host: config.get('redis.host'),
   port: config.get('redis.port'),
   password: config.get('redis.password'),
-  db: config.get('redis.db')
+  db: config.get('redis.db'),
+  maxRetriesPerRequest: null,
+  enableReadyCheck: false
 });
 
 // const redlock = new Redlock([redis], {
